@@ -1,6 +1,35 @@
 import torch
 import torch.nn as nn
 
+class DownBlock(nn.Module):
+    def __init__(self, in_c, out_c, normalize=True):
+        super().__init__()
+        layers = [nn.Conv2d(in_c, out_c, 4, 2, 1)]
+        if normalize:
+            layers.append(nn.BatchNorm2d(out_c))
+        layers.append(nn.LeakyReLU(0.2))
+        self.block = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.block(x)
+
+
+class UpBlock(nn.Module):
+    def __init__(self, in_c, out_c, dropout=False):
+        super().__init__()
+        layers = [
+            nn.ConvTranspose2d(in_c, out_c, 4, 2, 1),
+            nn.BatchNorm2d(out_c),
+            nn.ReLU()
+        ]
+        if dropout:
+            layers.append(nn.Dropout(0.5))
+        self.block = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.block(x)
+
+
 class ConvBlock(nn.Module):
     def __init__(self, in_c, out_c, down=True, use_act=True):
         super().__init__()
@@ -18,45 +47,54 @@ class ConvBlock(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, in_channels=3):
+    def __init__(self):
         super().__init__()
 
         # Encoder
-        self.down1 = ConvBlock(in_channels, 64, down=True, use_act=False)
-        self.down2 = ConvBlock(64, 128)
-        self.down3 = ConvBlock(128, 256)
-        self.down4 = ConvBlock(256, 512)
-        self.down5 = ConvBlock(512, 512)
+        self.d1 = DownBlock(3, 64, normalize=False)
+        self.d2 = DownBlock(64, 128)
+        self.d3 = DownBlock(128, 256)
+        self.d4 = DownBlock(256, 512)
+        self.d5 = DownBlock(512, 512)
+        self.d6 = DownBlock(512, 512)
+        self.d7 = DownBlock(512, 512)
+        self.d8 = DownBlock(512, 512, normalize=False)
 
-        # Bottleneck
-        self.bottleneck = nn.Sequential(
-            nn.Conv2d(512, 512, 4, 2, 1),
-            nn.ReLU()
-        )
+        # Decoder (🔥 دقت کن به in_channels)
+        self.u1 = UpBlock(512, 512, dropout=True)
+        self.u2 = UpBlock(1024, 512, dropout=True)
+        self.u3 = UpBlock(1024, 512, dropout=True)
+        self.u4 = UpBlock(1024, 512)
+        self.u5 = UpBlock(1024, 256)
+        self.u6 = UpBlock(512, 128)
+        self.u7 = UpBlock(256, 64)
 
-        # Decoder
-        self.up1 = ConvBlock(512, 512, down=False)
-        self.up2 = ConvBlock(1024, 256, down=False)
-        self.up3 = ConvBlock(512, 128, down=False)
-        self.up4 = ConvBlock(256, 64, down=False)
-        
         self.final = nn.Sequential(
             nn.ConvTranspose2d(128, 3, 4, 2, 1),
             nn.Tanh()
         )
 
     def forward(self, x):
-        d1 = self.down1(x)
-        d2 = self.down2(d1)
-        d3 = self.down3(d2)
-        d4 = self.down4(d3)
-        d5 = self.down5(d4)
+        d1 = self.d1(x)
+        d2 = self.d2(d1)
+        d3 = self.d3(d2)
+        d4 = self.d4(d3)
+        d5 = self.d5(d4)
+        d6 = self.d6(d5)
+        d7 = self.d7(d6)
+        d8 = self.d8(d7)
 
-        bottleneck = self.bottleneck(d5)
+        u1 = self.u1(d8)
+        u2 = self.u2(torch.cat([u1, d7], dim=1))
+        u3 = self.u3(torch.cat([u2, d6], dim=1))
+        u4 = self.u4(torch.cat([u3, d5], dim=1))
+        u5 = self.u5(torch.cat([u4, d4], dim=1))
+        u6 = self.u6(torch.cat([u5, d3], dim=1))
+        u7 = self.u7(torch.cat([u6, d2], dim=1))
 
-        up1 = self.up1(bottleneck)
-        up2 = self.up2(torch.cat([up1, d5], dim=1))
-        up3 = self.up3(torch.cat([up2, d4], dim=1))
-        up4 = self.up4(torch.cat([up3, d3], dim=1))
+        return self.final(torch.cat([u7, d1], dim=1))
 
-        return self.final(torch.cat([up4, d2], dim=1))
+"""model = Generator()
+x = torch.randn(1, 3, 256, 256)
+y = model(x)
+print(y.shape)"""

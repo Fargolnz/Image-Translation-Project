@@ -13,7 +13,7 @@ class DiscBlock(nn.Module):
     def forward(self, x):
         return self.block(x)
 
-
+# ---------- Discriminator ----------
 class Discriminator(nn.Module):
     def __init__(self, in_channels=3):
         super().__init__()

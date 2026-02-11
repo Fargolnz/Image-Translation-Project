@@ -1,73 +1,69 @@
 import torch
 import torch.nn as nn
 
+# ---------- Down Block ----------
 class DownBlock(nn.Module):
-    def __init__(self, in_c, out_c, normalize=True):
+    def __init__(self, in_channels, out_channels, normalize=True):
         super().__init__()
-        layers = [nn.Conv2d(in_c, out_c, 4, 2, 1)]
+
+        layers = [
+            nn.Conv2d(in_channels, out_channels, 4, 2, 1, bias=False)
+        ]
+
         if normalize:
-            layers.append(nn.BatchNorm2d(out_c))
-        layers.append(nn.LeakyReLU(0.2))
-        self.block = nn.Sequential(*layers)
+            layers.append(nn.BatchNorm2d(out_channels))
+
+        layers.append(nn.LeakyReLU(0.2, inplace=True))
+
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x):
-        return self.block(x)
+        return self.model(x)
 
 
+# ---------- Up Block ----------
 class UpBlock(nn.Module):
-    def __init__(self, in_c, out_c, dropout=False):
+    def __init__(self, in_channels, out_channels, dropout=False):
         super().__init__()
+
         layers = [
-            nn.ConvTranspose2d(in_c, out_c, 4, 2, 1),
-            nn.BatchNorm2d(out_c),
-            nn.ReLU()
+            nn.ConvTranspose2d(in_channels, out_channels, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
         ]
+
         if dropout:
             layers.append(nn.Dropout(0.5))
-        self.block = nn.Sequential(*layers)
+
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x):
-        return self.block(x)
+        return self.model(x)
 
 
-class ConvBlock(nn.Module):
-    def __init__(self, in_c, out_c, down=True, use_act=True):
-        super().__init__()
-
-        if down:
-            self.conv = nn.Conv2d(in_c, out_c, 4, 2, 1, bias=False)
-        else:
-            self.conv = nn.ConvTranspose2d(in_c, out_c, 4, 2, 1, bias=False)
-
-        self.bn = nn.BatchNorm2d(out_c)
-        self.act = nn.ReLU(inplace=True) if use_act else nn.Identity()
-
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x)))
-
-
+# ---------- Generator (U-Net 8 layers) ----------
 class Generator(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # Encoder
-        self.d1 = DownBlock(3, 64, normalize=False)
-        self.d2 = DownBlock(64, 128)
-        self.d3 = DownBlock(128, 256)
-        self.d4 = DownBlock(256, 512)
-        self.d5 = DownBlock(512, 512)
-        self.d6 = DownBlock(512, 512)
-        self.d7 = DownBlock(512, 512)
-        self.d8 = DownBlock(512, 512, normalize=False)
+        # Downsampling
+        self.down1 = DownBlock(3, 64, normalize=False)    # 256 → 128
+        self.down2 = DownBlock(64, 128)                   # 128 → 64
+        self.down3 = DownBlock(128, 256)                  # 64 → 32
+        self.down4 = DownBlock(256, 512)                  # 32 → 16
+        self.down5 = DownBlock(512, 512)                  # 16 → 8
+        self.down6 = DownBlock(512, 512)                  # 8 → 4
+        self.down7 = DownBlock(512, 512)                  # 4 → 2
+        self.down8 = DownBlock(512, 512, normalize=False) # 2 → 1
 
-        # Decoder (🔥 دقت کن به in_channels)
-        self.u1 = UpBlock(512, 512, dropout=True)
-        self.u2 = UpBlock(1024, 512, dropout=True)
-        self.u3 = UpBlock(1024, 512, dropout=True)
-        self.u4 = UpBlock(1024, 512)
-        self.u5 = UpBlock(1024, 256)
-        self.u6 = UpBlock(512, 128)
-        self.u7 = UpBlock(256, 64)
+        # Upsampling
+        self.up1 = UpBlock(512, 512, dropout=True)
+        self.up2 = UpBlock(1024, 512, dropout=True)
+        self.up3 = UpBlock(1024, 512, dropout=True)
+        self.up4 = UpBlock(1024, 512)
+        self.up5 = UpBlock(1024, 256)
+        self.up6 = UpBlock(512, 128)
+        self.up7 = UpBlock(256, 64)
 
         self.final = nn.Sequential(
             nn.ConvTranspose2d(128, 3, 4, 2, 1),
@@ -75,26 +71,26 @@ class Generator(nn.Module):
         )
 
     def forward(self, x):
-        d1 = self.d1(x)
-        d2 = self.d2(d1)
-        d3 = self.d3(d2)
-        d4 = self.d4(d3)
-        d5 = self.d5(d4)
-        d6 = self.d6(d5)
-        d7 = self.d7(d6)
-        d8 = self.d8(d7)
 
-        u1 = self.u1(d8)
-        u2 = self.u2(torch.cat([u1, d7], dim=1))
-        u3 = self.u3(torch.cat([u2, d6], dim=1))
-        u4 = self.u4(torch.cat([u3, d5], dim=1))
-        u5 = self.u5(torch.cat([u4, d4], dim=1))
-        u6 = self.u6(torch.cat([u5, d3], dim=1))
-        u7 = self.u7(torch.cat([u6, d2], dim=1))
+        # Down path
+        d1 = self.down1(x)
+        d2 = self.down2(d1)
+        d3 = self.down3(d2)
+        d4 = self.down4(d3)
+        d5 = self.down5(d4)
+        d6 = self.down6(d5)
+        d7 = self.down7(d6)
+        d8 = self.down8(d7)
 
-        return self.final(torch.cat([u7, d1], dim=1))
+        # Up path with skip connections
+        u1 = self.up1(d8)
+        u2 = self.up2(torch.cat([u1, d7], 1))
+        u3 = self.up3(torch.cat([u2, d6], 1))
+        u4 = self.up4(torch.cat([u3, d5], 1))
+        u5 = self.up5(torch.cat([u4, d4], 1))
+        u6 = self.up6(torch.cat([u5, d3], 1))
+        u7 = self.up7(torch.cat([u6, d2], 1))
 
-"""model = Generator()
-x = torch.randn(1, 3, 256, 256)
-y = model(x)
-print(y.shape)"""
+        out = self.final(torch.cat([u7, d1], 1))
+
+        return out

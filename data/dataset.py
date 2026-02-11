@@ -11,7 +11,6 @@ class SplitImageDataset(Dataset):
         self.images = sorted(os.listdir(root_dir))
 
         self.transform = transforms.Compose([
-            transforms.Resize((256, 512)),
             transforms.ToTensor(),
             transforms.Normalize(
                 (0.5, 0.5, 0.5),

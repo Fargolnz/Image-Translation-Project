@@ -11,8 +11,8 @@ from models.discriminator import Discriminator
 from utils import generator_loss, discriminator_loss
 
 # ----------------- Settings -----------------
-EPOCHS = 22
-BATCH_SIZE = 2
+EPOCHS = 10
+BATCH_SIZE = 4
 LR = 2e-4
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -23,8 +23,8 @@ os.makedirs("outputs", exist_ok=True)
 os.makedirs("checkpoints", exist_ok=True)
 
 # ----------------- Dataset -----------------
-train_dataset = SplitImageDataset("data/facades/train")
-val_dataset = SplitImageDataset("data/facades/val")
+train_dataset = SplitImageDataset("data/edges2shoes/train")
+val_dataset = SplitImageDataset("data/edges2shoes/val")
 
 train_loader = DataLoader(
     train_dataset,
@@ -42,7 +42,7 @@ gen = Generator().to(DEVICE)
 disc = Discriminator().to(DEVICE)
 
 opt_gen = optim.Adam(gen.parameters(), lr=LR, betas=(0.5, 0.999))
-opt_disc = optim.Adam(disc.parameters(), lr=5e-5, betas=(0.5, 0.999))
+opt_disc = optim.Adam(disc.parameters(), lr=LR, betas=(0.5, 0.999))
 
 # ----------------- Auto Resume -----------------
 start_epoch = 0
@@ -81,11 +81,11 @@ for epoch in range(start_epoch, EPOCHS):
         corrupted = corrupted.to(DEVICE)
         real = real.to(DEVICE)
 
+        fake = gen(corrupted)
+
         # ----------------------
         # Train Discriminator
         # ----------------------
-        fake = gen(corrupted)
-
         d_loss = discriminator_loss(
             disc, real, fake.detach(), corrupted
         )
@@ -98,8 +98,6 @@ for epoch in range(start_epoch, EPOCHS):
         # ----------------------
         # Train Generator
         # ----------------------
-        fake = gen(corrupted)
-
         g_loss = generator_loss(
             disc, fake, real, corrupted
         )
@@ -131,18 +129,18 @@ for epoch in range(start_epoch, EPOCHS):
     )
 
     # -------------------------------------------------
-    # Save Sample Output Every 5 Epochs
+    # Save Sample Output (Each Epoch)
     # -------------------------------------------------
-    if (epoch + 1) % 5 == 0:
-        gen.eval()
-        with torch.no_grad():
-            sample_fake = gen(fixed_input)
+    #if (epoch + 1) % 5 == 0:
+    gen.eval()
+    with torch.no_grad():
+        sample_fake = gen(fixed_input)
 
-        save_image(
-            (sample_fake + 1) / 2,
-            f"outputs/epoch_{epoch+1}.png"
-        )
-        print(f"Saved sample output for epoch {epoch+1}")
+    save_image(
+        (sample_fake + 1) / 2,
+        f"outputs/epoch_{epoch+1}.png"
+    )
+    print(f"Saved sample output for epoch {epoch+1}")
 
     # -------------------------------------------------
     # Save Checkpoint (Each Epoch)

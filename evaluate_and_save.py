@@ -45,7 +45,7 @@ print("Model loaded successfully ✅")
 # -------------------------------------------------
 # Dataset
 # -------------------------------------------------
-test_dataset = SplitImageDataset("data/facades/val")
+test_dataset = SplitImageDataset("data/edges2shoes/val")
 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
 # -------------------------------------------------

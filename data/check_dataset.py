@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from dataset import SplitImageDataset
 
-dataset = SplitImageDataset("data/facades/train")
+dataset = SplitImageDataset("data/edges2shoes/train")
 loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
 corrupted, real = next(iter(loader))

@@ -27,8 +27,8 @@ class SplitImageDataset(Dataset):
         _, h, w = img.shape
         w_half = w // 2
 
-        real = img[:, :, :w_half]
-        corrupted = img[:, :, w_half:]
+        real = img[:, :, w_half:]
+        corrupted = img[:, :, :w_half]
 
         return corrupted, real
 

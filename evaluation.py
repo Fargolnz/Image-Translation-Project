@@ -62,6 +62,81 @@ def tensor_to_image(tensor):
     return image
 
 # -------------------------------------------------
+# Evaluation Function
+# -------------------------------------------------
+def evaluate_model(model, dataloader, device):
+
+    model.eval()
+
+    psnr_scores = []
+    ssim_scores = []
+
+    with torch.no_grad():
+        for corrupted, real in dataloader:
+
+            corrupted = corrupted.to(device)
+            real = real.to(device)
+
+            fake = model(corrupted)
+
+            fake_img = tensor_to_image(fake[0])
+            real_img = tensor_to_image(real[0])
+
+            psnr_value = psnr(real_img, fake_img, data_range=1.0)
+            ssim_value = ssim(real_img, fake_img, data_range=1.0, channel_axis=2)
+
+            psnr_scores.append(psnr_value)
+            ssim_scores.append(ssim_value)
+
+    avg_psnr = np.mean(psnr_scores)
+    avg_ssim = np.mean(ssim_scores)
+
+    print("\n========== Evaluation Results ==========")
+    print("Average PSNR:", avg_psnr)
+    print("Average SSIM:", avg_ssim)
+    print("========================================")
+
+    model.train()
+
+    return avg_psnr, avg_ssim
+
+
+# -------------------------------------------------
+# Save Sample Comparisons Function
+# -------------------------------------------------
+def save_sample_images(model, dataloader, device, output_dir, epoch, max_images=10):
+
+    os.makedirs(output_dir, exist_ok=True)
+    model.eval()
+
+    with torch.no_grad():
+        for idx, (corrupted, real) in enumerate(dataloader):
+
+            corrupted = corrupted.to(device)
+            real = real.to(device)
+
+            fake = model(corrupted)
+
+            corrupted_img = denormalize(corrupted)
+            fake_img = denormalize(fake)
+            real_img = denormalize(real)
+
+            comparison = make_grid(
+                [corrupted_img[0], fake_img[0], real_img[0]],
+                nrow=3
+            )
+
+            save_image(
+                comparison,
+                f"{output_dir}/comparison_e{epoch}_{idx}.png"
+            )
+
+            if idx + 1 == max_images:
+                break
+
+    model.train()
+
+# -------------------------------------------------
 # Evaluation + Save Results
 # -------------------------------------------------
 psnr_scores = []

@@ -9,6 +9,7 @@ from data.dataset import SplitImageDataset
 from models.generator import Generator
 from models.discriminator import Discriminator
 from utils import generator_loss, discriminator_loss
+from evaluation import evaluate_model, save_sample_images
 
 # ----------------- Settings -----------------
 EPOCHS = 10
@@ -42,7 +43,7 @@ gen = Generator().to(DEVICE)
 disc = Discriminator().to(DEVICE)
 
 opt_gen = optim.Adam(gen.parameters(), lr=LR, betas=(0.5, 0.999))
-opt_disc = optim.Adam(disc.parameters(), lr=LR, betas=(0.5, 0.999))
+opt_disc = optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
 
 # ----------------- Auto Resume -----------------
 start_epoch = 0
@@ -131,7 +132,6 @@ for epoch in range(start_epoch, EPOCHS):
     # -------------------------------------------------
     # Save Sample Output (Each Epoch)
     # -------------------------------------------------
-    #if (epoch + 1) % 5 == 0:
     gen.eval()
     with torch.no_grad():
         sample_fake = gen(fixed_input)
@@ -152,5 +152,18 @@ for epoch in range(start_epoch, EPOCHS):
         "opt_g": opt_gen.state_dict(),
         "opt_d": opt_disc.state_dict()
     }, f"checkpoints/epoch_{epoch+1}.pth")
+
+    # -------------------------------------------------
+    # Evaluation (Each Epoch)
+    # -------------------------------------------------
+    psnr, ssim = evaluate_model(gen, val_loader, DEVICE)
+
+    save_sample_images(
+        gen,
+        val_loader,
+        DEVICE,
+        output_dir="results",
+        epoch=epoch
+    )
 
 print("Training Finished Successfully ✅")
